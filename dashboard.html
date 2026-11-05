@@ -41,6 +41,10 @@
   .todo .b { flex:1; font-size:14px; line-height:1.45; }
   .todo .meta { font-size:12px; color:var(--sub); }
   .todo.done .b { text-decoration:line-through; color:var(--sub); }
+  .todo { transition:opacity .3s, transform .3s; }
+  .todo.leaving { opacity:0; transform:translateX(16px); }
+  .toggleDone { margin-top:10px; border:1px solid var(--line); background:#fff; border-radius:8px; padding:6px 10px; font-size:12px; color:var(--sub); cursor:pointer; }
+  .saveMsg { font-size:12px; color:var(--warn); margin-top:6px; }
   .due { font-size:12px; font-weight:700; padding:2px 8px; border-radius:6px; background:#eef2f7; color:var(--navy); white-space:nowrap; }
   .due.soon { background:#fdecea; color:var(--warn); }
   .docs { display:grid; grid-template-columns:repeat(auto-fill,minmax(250px,1fr)); gap:12px; }
@@ -84,7 +88,31 @@ const WD = ['일','월','화','수','목','금','토'];
 const fmtDay = d => { const x = new Date(d + 'T00:00:00+09:00'); return `${x.getMonth()+1}/${x.getDate()}(${WD[x.getDay()]})`; };
 const todayStr = () => new Date(Date.now() + 9*3600e3).toISOString().slice(0, 10);
 const daysLeft = d => Math.round((new Date(d + 'T00:00:00+09:00') - new Date(todayStr() + 'T00:00:00+09:00')) / 864e5);
-let checked = new Set(store.get('todoDone', []));
+let checked = new Set();      // 저장소 dashboard/done.json 에 기록된 완료 항목
+let doneSha = null, showDone = false, lastData = null;
+const API = path => `https://api.github.com/repos/${dashRepo}/contents/${path}`;
+const H = () => ({ Authorization: `Bearer ${cfg.token}`, Accept: 'application/vnd.github+json' });
+const b64 = str => btoa(unescape(encodeURIComponent(str)));
+const unb64 = str => decodeURIComponent(escape(atob(str.replace(/\n/g, ''))));
+async function loadDone() {
+  const r = await fetch(API('dashboard/done.json') + '?t=' + Date.now(), { headers: H(), cache: 'no-store' });
+  if (r.status === 404) { doneSha = null; return []; }
+  if (!r.ok) throw new Error(r.status);
+  const j = await r.json(); doneSha = j.sha;
+  try { return JSON.parse(unb64(j.content)).done || []; } catch { return []; }
+}
+async function saveDone(retry = true) {
+  const body = { message: '할 일 완료 표시 갱신', content: b64(JSON.stringify({ done: [...checked] }, null, 2) + '\n') };
+  if (doneSha) body.sha = doneSha;
+  const r = await fetch(API('dashboard/done.json'), { method: 'PUT', headers: H(), body: JSON.stringify(body) });
+  if (r.status === 409 || r.status === 422) {          // 다른 기기에서 먼저 바뀐 경우: 합쳐서 다시 저장
+    if (!retry) throw new Error(r.status);
+    (await loadDone()).forEach(id => checked.add(id));
+    return saveDone(false);
+  }
+  if (!r.ok) throw new Error(r.status);
+  doneSha = (await r.json()).content.sha;
+}
 
 function calLabel(c) { const [n, col] = CAL[c] || CAL.me; return `<span class="cal"><span class="dot" style="background:${col}"></span>${n}</span>`; }
 
@@ -99,6 +127,7 @@ function evList(list) {
 }
 
 function render(d) {
+  if (!d) return; lastData = d;
   document.getElementById('when').textContent = `${new Date(d.updated).toLocaleString('ko-KR', { timeZone:'Asia/Seoul', month:'numeric', day:'numeric', weekday:'short', hour:'2-digit', minute:'2-digit' })} 정리 기준`;
   if (d.notice) document.getElementById('noticeWrap').innerHTML =
     `<div class="notice"><span>📢 최신 공지 · ${esc(d.notice.title)}</span><a href="${esc(d.notice.url)}" target="_blank" rel="noopener">전문 복사 ▶</a></div>`;
@@ -108,16 +137,19 @@ function render(d) {
   const near = soon.filter(e => daysLeft(e.date) <= 1);
   const later = soon.filter(e => daysLeft(e.date) > 1 && daysLeft(e.date) <= 14);
   const todos = (d.todos || []).slice().sort((a, b) => (a.due || '9999').localeCompare(b.due || '9999'));
-  const openTodos = todos.filter(x => !checked.has(x.id)).length;
+  const openList = todos.filter(x => !checked.has(x.id)), doneList = todos.filter(x => checked.has(x.id));
+  const openTodos = openList.length;
 
   document.getElementById('main').innerHTML = `
     <section class="s-today"><h2>오늘 · 내일 <span class="n">${near.length}</span></h2>${evList(near)}</section>
     <section class="s-todo"><h2>내가 할 일 <span class="n">${openTodos}</span></h2>
-      ${todos.length ? `<ul>${todos.map(x => {
+      ${openList.length || (showDone && doneList.length) ? `<ul>${(showDone ? openList.concat(doneList) : openList).map(x => {
         const dl = x.due ? daysLeft(x.due) : null;
         return `<li class="todo ${checked.has(x.id) ? 'done' : ''}"><input type="checkbox" data-id="${esc(x.id)}" ${checked.has(x.id) ? 'checked' : ''}>
           <div class="b">${esc(x.task)}<div class="meta">${esc(x.source || '')}</div></div>
-          ${x.due ? `<span class="due ${dl !== null && dl <= 2 ? 'soon' : ''}">${dl < 0 ? '지남' : dl === 0 ? '오늘' : 'D-' + dl}</span>` : ''}</li>`; }).join('')}</ul>` : '<div class="empty">정리된 할 일이 없어요.</div>'}
+          ${x.due ? `<span class="due ${dl !== null && dl <= 2 ? 'soon' : ''}">${dl < 0 ? '지남' : dl === 0 ? '오늘' : 'D-' + dl}</span>` : ''}</li>`; }).join('')}</ul>` : '<div class="empty">남은 할 일이 없어요. 👏</div>'}
+      ${doneList.length ? `<button class="toggleDone" id="toggleDone">${showDone ? '완료한 일 숨기기' : `완료한 일 ${doneList.length}개 보기`}</button>` : ''}
+      <div class="saveMsg" id="saveMsg"></div>
     </section>
     <section class="s-up"><h2>다가오는 2주 <span class="n">${later.length}</span></h2>${evList(later)}</section>
     <section class="s-docs"><h2>문서별 최근 정리 <span class="n">${(d.docs || []).length}</span></h2>
@@ -132,11 +164,23 @@ function render(d) {
     </section>`;
 }
 
-document.addEventListener('change', e => {
+document.addEventListener('change', async e => {
   const id = e.target.dataset && e.target.dataset.id; if (!id) return;
+  const li = e.target.closest('.todo'), msg = document.getElementById('saveMsg');
   e.target.checked ? checked.add(id) : checked.delete(id);
-  store.set('todoDone', [...checked]);
-  e.target.closest('.todo').classList.toggle('done', e.target.checked);
+  li.classList.toggle('done', e.target.checked);
+  if (e.target.checked && !showDone) li.classList.add('leaving');
+  try {
+    await saveDone();
+    setTimeout(() => render(lastData), e.target.checked && !showDone ? 350 : 0);
+  } catch (err) {
+    e.target.checked ? checked.delete(id) : checked.add(id);
+    render(lastData);
+    const m = document.getElementById('saveMsg'); if (m) m.textContent = `저장하지 못했어요 (${err.message}). 토큰에 my-ideas 쓰기 권한이 있는지 확인해 주세요.`;
+  }
+});
+document.addEventListener('click', e => {
+  if (e.target.id === 'toggleDone') { showDone = !showDone; render(lastData); }
 });
 
 const main = document.getElementById('main');
@@ -146,7 +190,7 @@ if (!cfg.token) {
   fetch(`https://api.github.com/repos/${dashRepo}/contents/dashboard/data.json?t=${Date.now()}`, {
     headers: { Authorization: `Bearer ${cfg.token}`, Accept: 'application/vnd.github.raw' }, cache: 'no-store'
   }).then(r => { if (!r.ok) throw new Error(r.status); return r.json(); })
-    .then(render)
+    .then(async d => { lastData = d; try { (await loadDone()).forEach(id => checked.add(id)); } catch {} render(d); })
     .catch(e => { main.innerHTML = `<div class="gate">정리 자료를 불러오지 못했어요 (${esc(e.message)}).<br>토큰에 ${esc(dashRepo)} 읽기 권한이 있는지 확인해 주세요. <a href="share.html?setup=1">설정 확인</a></div>`; });
 }
 if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(() => {});
