@@ -72,7 +72,7 @@ const store = {
 let links = [], done = new Set(store.get('done', [])), hideDone = store.get('hideDone', false);
 let srcFilter = 'all', tagFilter = null, catFilter = store.get('cat', 'study');
 const cfg = store.get('cfg', {});
-const CAT = { study: '공부', life: '생활', all: '전체' };
+const CAT = { study: '공부', grad: '대학원', life: '생활', etc: '기타', all: '전체' };
 const thumbCache = new Map();
 
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));

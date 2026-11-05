@@ -49,7 +49,7 @@ function setupView(note) {
     </ol>
     <label>자료 저장소 (비공개, 계정/저장소이름)</label><input id="repo" value="${cfg.repo}">
     <label>깃허브 토큰 (my-links·my-ideas 두 저장소, Contents 읽기·쓰기)</label><input id="token" type="password" value="${cfg.token}" placeholder="github_pat_...">
-    <div class="row"><input type="checkbox" id="auto" ${cfg.auto ? 'checked' : ''}><span>메모 칸 없이 공부/생활 버튼만 보이기</span></div>
+    <div class="row"><input type="checkbox" id="auto" ${cfg.auto ? 'checked' : ''}><span>메모 칸 없이 분류 버튼만 보이기</span></div>
     <button id="save">설정 저장</button>
     <button class="ghost" onclick="location.href='./'">링크함 보기</button>
     <div class="msg" id="msg"></div>`;
@@ -80,21 +80,22 @@ function shareView(url) {
       <label>메모 (선택)</label><textarea id="memo" placeholder="왜 저장했는지 한 줄"></textarea>
       <label>태그 (선택, 쉼표로 구분)</label><input id="tags" placeholder="AI, 수업, 맛집">
     </div>
-    <div style="display:flex;gap:10px">
-      <button id="study" style="flex:1">📚 공부</button>
-      <button id="life" style="flex:1;background:#c0663b">🏠 생활</button>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+      <button class="cat" data-cat="study" style="margin-top:12px">📚 공부</button>
+      <button class="cat" data-cat="grad" style="margin-top:12px;background:#4b3f8f">🎓 대학원</button>
+      <button class="cat" data-cat="life" style="margin-top:0;background:#c0663b">🏠 생활</button>
+      <button class="cat" data-cat="etc" style="margin-top:0;background:#6b7280">🗂 기타</button>
     </div>
     <button class="ghost" onclick="location.href='./'">링크함 보기</button>
     <div class="msg" id="msg"></div>`;
-  document.getElementById('study').onclick = () => run('study');
-  document.getElementById('life').onclick = () => run('life');
+  document.querySelectorAll('button.cat').forEach(b => b.onclick = () => run(b.dataset.cat));
   async function run(category) {
-    const m = document.getElementById('msg'), btns = [document.getElementById('study'), document.getElementById('life')];
+    const m = document.getElementById('msg'), btns = [...document.querySelectorAll('button.cat')];
     btns.forEach(x => x.disabled = true); m.className = 'msg ok'; m.textContent = '저장 중…';
     try {
       const tags = document.getElementById('tags').value.split(',').map(t => t.trim()).filter(Boolean);
       await save(url, document.getElementById('memo').value.trim(), tags, category);
-      m.textContent = `${category === 'study' ? '공부' : '생활'} 자료로 담았어요! 썸네일은 1~2분 뒤 반영됩니다.`;
+      m.textContent = `${({ study: '공부', grad: '대학원', life: '생활', etc: '기타' })[category]} 자료로 담았어요! 썸네일은 1~2분 뒤 반영됩니다.`;
       setTimeout(() => { try { window.close(); } catch {} }, 1500);
     } catch (e) { m.className = 'msg err'; m.textContent = e.message; btns.forEach(x => x.disabled = false); }
   }
