@@ -86,6 +86,7 @@ function shareView(url) {
       <button class="cat" data-cat="life" style="margin-top:0;background:#c0663b">🏠 생활</button>
       <button class="cat" data-cat="etc" style="margin-top:0;background:#6b7280">🗂 기타</button>
     </div>
+    <button class="ghost" onclick="location.href='add.html' + location.search">📅 링크 말고 일정으로 저장</button>
     <button class="ghost" onclick="location.href='./'">링크함 보기</button>
     <div class="msg" id="msg"></div>`;
   document.querySelectorAll('button.cat').forEach(b => b.onclick = () => run(b.dataset.cat));
@@ -103,7 +104,7 @@ function shareView(url) {
 
 const url = findUrl();
 if (p.get('setup') || !cfg.token) setupView(!p.get('setup') && url ? '처음 한 번은 설정이 필요해요. 설정 후 다시 공유해 주세요.' : '');
-else if (!url) setupView('공유된 내용에서 링크를 찾지 못했어요.');
+else if (!url) location.replace('add.html' + location.search);
 else shareView(url);
 </script>
 </body>
