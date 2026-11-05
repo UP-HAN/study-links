@@ -1,0 +1,155 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>한눈에 보기</title>
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="theme-color" content="#1f3a5f">
+<link rel="icon" href="icons/icon-192.png">
+<style>
+  :root { --bg:#f7f4ee; --ink:#1d2430; --sub:#6b7280; --line:#e5e0d6; --navy:#1f3a5f; --gold:#ffd666; --card:#fff;
+          --school:#2f7d5b; --xr:#7a4cc2; --atc:#c0663b; --me:#1f3a5f; --warn:#c0392b; }
+  * { box-sizing:border-box; }
+  body { margin:0; background:var(--bg); color:var(--ink); font-family:"Pretendard","Apple SD Gothic Neo","Noto Sans KR",system-ui,sans-serif; }
+  header { background:var(--navy); color:#fff; padding:22px 20px 18px; }
+  .wrap { max-width:1180px; margin:0 auto; }
+  header .row { display:flex; justify-content:space-between; align-items:flex-end; gap:12px; flex-wrap:wrap; }
+  h1 { margin:0; font-size:24px; letter-spacing:-0.5px; }
+  .when { font-size:13px; opacity:.8; }
+  header nav a { color:var(--gold); font-size:13px; margin-left:12px; }
+  main { padding:20px; display:grid; gap:18px; grid-template-columns:repeat(12,1fr); }
+  section { background:var(--card); border:1px solid var(--line); border-radius:14px; padding:16px 18px; min-width:0; }
+  section h2 { font-size:15px; margin:0 0 12px; display:flex; align-items:center; gap:8px; }
+  section h2 .n { background:#eef2f7; color:var(--navy); border-radius:999px; font-size:12px; padding:1px 8px; }
+  .s-today { grid-column:span 5; } .s-todo { grid-column:span 7; }
+  .s-up { grid-column:span 5; } .s-docs { grid-column:span 7; }
+  .s-ideas { grid-column:span 12; }
+  @media (max-width:860px) { main section { grid-column:span 12 !important; } }
+  ul { list-style:none; margin:0; padding:0; }
+  .ev { display:flex; gap:10px; padding:8px 0; border-top:1px solid #f1ede5; align-items:baseline; }
+  .ev:first-child { border-top:0; }
+  .ev .t { font-variant-numeric:tabular-nums; font-weight:700; min-width:76px; font-size:14px; }
+  .ev .ti { flex:1; font-size:14px; }
+  .dot { width:8px; height:8px; border-radius:50%; display:inline-block; margin-right:6px; vertical-align:middle; }
+  .cal { font-size:11px; color:var(--sub); white-space:nowrap; }
+  .day { font-size:12px; font-weight:700; color:var(--sub); margin:12px 0 2px; }
+  .day:first-child { margin-top:0; }
+  .todo { display:flex; gap:10px; align-items:flex-start; padding:9px 0; border-top:1px solid #f1ede5; }
+  .todo:first-child { border-top:0; }
+  .todo input { margin-top:3px; width:16px; height:16px; accent-color:var(--navy); }
+  .todo .b { flex:1; font-size:14px; line-height:1.45; }
+  .todo .meta { font-size:12px; color:var(--sub); }
+  .todo.done .b { text-decoration:line-through; color:var(--sub); }
+  .due { font-size:12px; font-weight:700; padding:2px 8px; border-radius:6px; background:#eef2f7; color:var(--navy); white-space:nowrap; }
+  .due.soon { background:#fdecea; color:var(--warn); }
+  .docs { display:grid; grid-template-columns:repeat(auto-fill,minmax(250px,1fr)); gap:12px; }
+  .doc { border:1px solid var(--line); border-radius:12px; padding:12px 13px; display:flex; flex-direction:column; gap:6px; }
+  .doc .top { display:flex; justify-content:space-between; gap:6px; align-items:center; }
+  .doc a.name { font-weight:700; font-size:14px; color:var(--ink); text-decoration:none; }
+  .doc a.name:hover { text-decoration:underline; }
+  .tag { font-size:11px; padding:2px 7px; border-radius:5px; background:#eef2f7; color:var(--navy); white-space:nowrap; }
+  .doc ul li { font-size:13px; line-height:1.5; color:#374151; padding-left:10px; position:relative; }
+  .doc ul li::before { content:"·"; position:absolute; left:0; }
+  .doc .mod { font-size:11px; color:var(--sub); }
+  .doc.fresh { border-color:var(--gold); box-shadow:0 0 0 2px #fff3c4 inset; }
+  .ideas { display:grid; grid-template-columns:repeat(auto-fill,minmax(260px,1fr)); gap:12px; }
+  .idea { background:#fffaf0; border:1px dashed #e7d7a8; border-radius:12px; padding:12px 13px; font-size:13px; line-height:1.5; }
+  .idea b { display:block; font-size:14px; margin-bottom:4px; }
+  .notice { display:flex; justify-content:space-between; align-items:center; gap:10px; background:#fff8e1; border:1px solid #f1df9b; border-radius:12px; padding:10px 14px; margin:0 20px; font-size:14px; }
+  .notice a { color:var(--navy); font-weight:700; white-space:nowrap; }
+  .empty { color:var(--sub); font-size:13px; padding:6px 0; }
+  .gate { text-align:center; color:var(--sub); padding:80px 20px; line-height:1.8; grid-column:span 12; }
+  .gate a { color:var(--navy); }
+</style>
+</head>
+<body>
+<header><div class="wrap row">
+  <div><h1>한눈에 보기</h1><div class="when" id="when"></div></div>
+  <nav><a href="./">링크함</a><a href="share.html?setup=1">설정</a></nav>
+</div></header>
+<div class="wrap" id="noticeWrap" style="margin-top:16px"></div>
+<main class="wrap" id="main"></main>
+
+<script>
+const store = {
+  get(k, d) { try { return JSON.parse(localStorage.getItem(k)) ?? d; } catch { return d; } },
+  set(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch {} }
+};
+const cfg = store.get('cfg', {});
+const dashRepo = cfg.dashRepo || 'UP-HAN/my-ideas';
+const CAL = { school:['청암초', 'var(--school)'], xr:['XR-Teachers', 'var(--xr)'], atc:['ATC', 'var(--atc)'], me:['개인', 'var(--me)'] };
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const WD = ['일','월','화','수','목','금','토'];
+const fmtDay = d => { const x = new Date(d + 'T00:00:00+09:00'); return `${x.getMonth()+1}/${x.getDate()}(${WD[x.getDay()]})`; };
+const todayStr = () => new Date(Date.now() + 9*3600e3).toISOString().slice(0, 10);
+const daysLeft = d => Math.round((new Date(d + 'T00:00:00+09:00') - new Date(todayStr() + 'T00:00:00+09:00')) / 864e5);
+let checked = new Set(store.get('todoDone', []));
+
+function calLabel(c) { const [n, col] = CAL[c] || CAL.me; return `<span class="cal"><span class="dot" style="background:${col}"></span>${n}</span>`; }
+
+function evList(list) {
+  if (!list.length) return '<div class="empty">일정이 없어요.</div>';
+  let html = '', last = '';
+  for (const e of list) {
+    if (e.date !== last) { html += `<div class="day">${fmtDay(e.date)}${e.date === todayStr() ? ' · 오늘' : daysLeft(e.date) === 1 ? ' · 내일' : ''}</div>`; last = e.date; }
+    html += `<li class="ev"><span class="t">${esc(e.time || '종일')}</span><span class="ti">${esc(e.title)}</span>${calLabel(e.cal)}</li>`;
+  }
+  return `<ul>${html}</ul>`;
+}
+
+function render(d) {
+  document.getElementById('when').textContent = `${new Date(d.updated).toLocaleString('ko-KR', { timeZone:'Asia/Seoul', month:'numeric', day:'numeric', weekday:'short', hour:'2-digit', minute:'2-digit' })} 정리 기준`;
+  if (d.notice) document.getElementById('noticeWrap').innerHTML =
+    `<div class="notice"><span>📢 최신 공지 · ${esc(d.notice.title)}</span><a href="${esc(d.notice.url)}" target="_blank" rel="noopener">전문 복사 ▶</a></div>`;
+
+  const t = todayStr();
+  const soon = (d.events || []).filter(e => e.date >= t).sort((a, b) => (a.date + (a.time || '')).localeCompare(b.date + (b.time || '')));
+  const near = soon.filter(e => daysLeft(e.date) <= 1);
+  const later = soon.filter(e => daysLeft(e.date) > 1 && daysLeft(e.date) <= 14);
+  const todos = (d.todos || []).slice().sort((a, b) => (a.due || '9999').localeCompare(b.due || '9999'));
+  const openTodos = todos.filter(x => !checked.has(x.id)).length;
+
+  document.getElementById('main').innerHTML = `
+    <section class="s-today"><h2>오늘 · 내일 <span class="n">${near.length}</span></h2>${evList(near)}</section>
+    <section class="s-todo"><h2>내가 할 일 <span class="n">${openTodos}</span></h2>
+      ${todos.length ? `<ul>${todos.map(x => {
+        const dl = x.due ? daysLeft(x.due) : null;
+        return `<li class="todo ${checked.has(x.id) ? 'done' : ''}"><input type="checkbox" data-id="${esc(x.id)}" ${checked.has(x.id) ? 'checked' : ''}>
+          <div class="b">${esc(x.task)}<div class="meta">${esc(x.source || '')}</div></div>
+          ${x.due ? `<span class="due ${dl !== null && dl <= 2 ? 'soon' : ''}">${dl < 0 ? '지남' : dl === 0 ? '오늘' : 'D-' + dl}</span>` : ''}</li>`; }).join('')}</ul>` : '<div class="empty">정리된 할 일이 없어요.</div>'}
+    </section>
+    <section class="s-up"><h2>다가오는 2주 <span class="n">${later.length}</span></h2>${evList(later)}</section>
+    <section class="s-docs"><h2>문서별 최근 정리 <span class="n">${(d.docs || []).length}</span></h2>
+      <div class="docs">${(d.docs || []).map(doc => {
+        const fresh = doc.modified && (Date.now() - new Date(doc.modified)) < 864e5;
+        return `<div class="doc ${fresh ? 'fresh' : ''}"><div class="top"><a class="name" href="${esc(doc.url)}" target="_blank" rel="noopener">${esc(doc.name)}</a><span class="tag">${esc(doc.kind || '')}</span></div>
+          <ul>${(doc.summary || []).map(s => `<li>${esc(s)}</li>`).join('') || '<li>최근 변경 없음</li>'}</ul>
+          <div class="mod">${doc.modified ? '수정 ' + new Date(doc.modified).toLocaleString('ko-KR', { timeZone:'Asia/Seoul', month:'numeric', day:'numeric', hour:'2-digit', minute:'2-digit' }) : ''}${fresh ? ' · 새로 바뀜' : ''}</div></div>`; }).join('')}</div>
+    </section>
+    <section class="s-ideas"><h2>아이디어 <span class="n">${(d.ideas || []).length}</span></h2>
+      <div class="ideas">${(d.ideas || []).map(i => `<div class="idea"><b>${esc(i.title)}</b>${esc(i.summary || '')}<div class="mod" style="font-size:11px;color:var(--sub);margin-top:6px">${esc(i.date || '')}</div></div>`).join('') || '<div class="empty">아직 없어요.</div>'}</div>
+    </section>`;
+}
+
+document.addEventListener('change', e => {
+  const id = e.target.dataset && e.target.dataset.id; if (!id) return;
+  e.target.checked ? checked.add(id) : checked.delete(id);
+  store.set('todoDone', [...checked]);
+  e.target.closest('.todo').classList.toggle('done', e.target.checked);
+});
+
+const main = document.getElementById('main');
+if (!cfg.token) {
+  main.innerHTML = `<div class="gate">이 기기에서는 아직 열람 설정이 되어 있지 않아요.<br><a href="share.html?setup=1">설정하기</a></div>`;
+} else {
+  fetch(`https://api.github.com/repos/${dashRepo}/contents/dashboard/data.json?t=${Date.now()}`, {
+    headers: { Authorization: `Bearer ${cfg.token}`, Accept: 'application/vnd.github.raw' }, cache: 'no-store'
+  }).then(r => { if (!r.ok) throw new Error(r.status); return r.json(); })
+    .then(render)
+    .catch(e => { main.innerHTML = `<div class="gate">정리 자료를 불러오지 못했어요 (${esc(e.message)}).<br>토큰에 ${esc(dashRepo)} 읽기 권한이 있는지 확인해 주세요. <a href="share.html?setup=1">설정 확인</a></div>`; });
+}
+if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(() => {});
+</script>
+</body>
+</html>

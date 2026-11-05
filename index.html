@@ -1,0 +1,162 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>나의 링크함</title>
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="theme-color" content="#1f3a5f">
+<link rel="icon" href="icons/icon-192.png">
+<style>
+  :root { --bg:#f7f4ee; --ink:#1d2430; --sub:#6b7280; --line:#e5e0d6; --navy:#1f3a5f; --gold:#ffd666; --card:#fff; }
+  * { box-sizing:border-box; }
+  body { margin:0; background:var(--bg); color:var(--ink); font-family:"Pretendard","Apple SD Gothic Neo","Noto Sans KR",system-ui,sans-serif; }
+  header { background:var(--navy); color:#fff; padding:28px 20px 22px; }
+  .wrap { max-width:1180px; margin:0 auto; }
+  h1 { margin:0 0 6px; font-size:26px; letter-spacing:-0.5px; }
+  .lead { margin:0; opacity:.8; font-size:14px; }
+  .bar { display:flex; flex-wrap:wrap; gap:8px; align-items:center; padding:16px 20px; position:sticky; top:0; background:var(--bg); border-bottom:1px solid var(--line); z-index:5; }
+  .bar input { flex:1 1 220px; padding:10px 14px; border:1px solid var(--line); border-radius:10px; font-size:15px; background:#fff; }
+  .chip { border:1px solid var(--line); background:#fff; border-radius:999px; padding:7px 13px; font-size:13px; cursor:pointer; color:var(--ink); }
+  .chip.on { background:var(--navy); color:#fff; border-color:var(--navy); }
+  .stats { font-size:13px; color:var(--sub); margin-left:auto; }
+  main { padding:20px; }
+  .grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(250px,1fr)); gap:18px; }
+  .card { background:var(--card); border:1px solid var(--line); border-radius:14px; overflow:hidden; display:flex; flex-direction:column; transition:transform .15s, box-shadow .15s; }
+  .card:hover { transform:translateY(-2px); box-shadow:0 8px 22px rgba(0,0,0,.08); }
+  .card.done { opacity:.55; }
+  .thumb { aspect-ratio:16/10; background:#e9e4da center/cover no-repeat; display:flex; align-items:center; justify-content:center; font-weight:700; color:#fff; font-size:20px; text-decoration:none; }
+  .body { padding:14px 15px 12px; display:flex; flex-direction:column; gap:6px; flex:1; }
+  .meta { display:flex; gap:6px; align-items:center; font-size:12px; color:var(--sub); }
+  .src { padding:2px 8px; border-radius:6px; color:#fff; font-weight:600; font-size:11px; }
+  .title { font-size:15px; font-weight:700; line-height:1.4; color:var(--ink); text-decoration:none; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden; }
+  .desc { font-size:13px; color:var(--sub); line-height:1.5; display:-webkit-box; -webkit-line-clamp:3; -webkit-box-orient:vertical; overflow:hidden; margin:0; }
+  .memo { font-size:13px; background:#fff8e1; border-left:3px solid var(--gold); padding:6px 9px; border-radius:4px; margin:0; }
+  .tags { display:flex; flex-wrap:wrap; gap:4px; }
+  .tag { font-size:11px; background:#eef2f7; color:var(--navy); padding:2px 7px; border-radius:5px; }
+  .foot { display:flex; justify-content:space-between; align-items:center; padding:0 15px 13px; }
+  .foot button { border:1px solid var(--line); background:#fff; border-radius:8px; padding:6px 10px; font-size:12px; cursor:pointer; }
+  .card.done .foot button { background:var(--navy); color:#fff; }
+  .empty { text-align:center; color:var(--sub); padding:60px 20px; line-height:1.8; }
+  .empty a, header a { color:var(--gold); }
+</style>
+</head>
+<body>
+<header><div class="wrap">
+  <h1>나의 링크함</h1>
+  <p class="lead">공유해 둔 자료를 모아 두는 나만의 공간 · <a href="dashboard.html">한눈에 보기</a> · <a href="share.html?setup=1">설정</a></p>
+</div></header>
+
+<div class="bar wrap">
+  <div id="catChips"></div>
+  <input id="q" type="search" placeholder="제목·설명·메모·태그 검색">
+  <div id="srcChips"></div>
+  <button class="chip" id="hideDone">본 것 숨기기</button>
+  <span class="stats" id="stats"></span>
+</div>
+<div class="wrap" style="padding:0 20px"><div id="tagChips" style="display:flex;flex-wrap:wrap;gap:6px"></div></div>
+
+<main class="wrap"><div class="grid" id="grid"></div></main>
+
+<script>
+const SRC = {
+  threads:   { name:'Threads',   color:'#111' },
+  instagram: { name:'Instagram', color:'#d62976' },
+  youtube:   { name:'YouTube',   color:'#e00' },
+  web:       { name:'웹',        color:'#4b6584' }
+};
+const store = {
+  get(k, d) { try { return JSON.parse(localStorage.getItem(k)) ?? d; } catch { return d; } },
+  set(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch {} }
+};
+let links = [], done = new Set(store.get('done', [])), hideDone = store.get('hideDone', false);
+let srcFilter = 'all', tagFilter = null, catFilter = store.get('cat', 'study');
+const cfg = store.get('cfg', {});
+const CAT = { study: '공부', life: '생활', all: '전체' };
+const thumbCache = new Map();
+
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const api = path => fetch(`https://api.github.com/repos/${cfg.repo}/contents/${path}?t=${Date.now()}`, {
+  headers: { Authorization: `Bearer ${cfg.token}`, Accept: 'application/vnd.github.raw' }, cache: 'no-store' });
+
+function render() {
+  const q = document.getElementById('q').value.trim().toLowerCase();
+  const list = links.filter(l =>
+    (catFilter === 'all' || (l.category || 'study') === catFilter) &&
+    (srcFilter === 'all' || l.source === srcFilter) &&
+    (!tagFilter || (l.tags || []).includes(tagFilter)) &&
+    (!hideDone || !done.has(l.id)) &&
+    (!q || [l.title, l.description, l.memo, (l.tags || []).join(' ')].join(' ').toLowerCase().includes(q))
+  );
+  document.getElementById('stats').textContent = `${list.length}개 표시 · 전체 ${links.length}개`;
+  const grid = document.getElementById('grid');
+  if (!links.length) {
+    grid.innerHTML = `<div class="empty" style="grid-column:1/-1">아직 모인 자료가 없어요.<br>휴대폰에서 게시물의 <b>공유 → 링크함</b>을 누르면 여기에 쌓입니다.</div>`;
+    return;
+  }
+  grid.innerHTML = list.map(l => {
+    const s = SRC[l.source] || SRC.web;
+    return `<article class="card ${done.has(l.id) ? 'done' : ''}">
+      <a class="thumb" href="${esc(l.url)}" target="_blank" rel="noopener" style="background-color:${s.color}" ${l.thumb ? `data-thumb="${esc(l.thumb)}"` : ''}>${l.thumb ? '' : s.name}</a>
+      <div class="body">
+        <div class="meta"><span class="src" style="background:${s.color}">${s.name}</span><span>${esc((l.added || '').slice(0, 10))}</span>${l.author ? `<span>· ${esc(l.author)}</span>` : ''}</div>
+        <a class="title" href="${esc(l.url)}" target="_blank" rel="noopener">${esc(l.title || l.url)}</a>
+        ${l.description ? `<p class="desc">${esc(l.description)}</p>` : ''}
+        ${l.memo ? `<p class="memo">${esc(l.memo)}</p>` : ''}
+        ${(l.tags || []).length ? `<div class="tags">${l.tags.map(t => `<span class="tag">#${esc(t)}</span>`).join('')}</div>` : ''}
+      </div>
+      <div class="foot"><span></span><button data-id="${esc(l.id)}">${done.has(l.id) ? '✓ 봤음' : '봤음 표시'}</button></div>
+    </article>`;
+  }).join('') || `<div class="empty" style="grid-column:1/-1">조건에 맞는 자료가 없어요.</div>`;
+  loadThumbs();
+}
+
+// 썸네일도 비공개 저장소에 있으므로 토큰으로 받아 화면에만 띄운다.
+async function loadThumbs() {
+  for (const el of document.querySelectorAll('[data-thumb]')) {
+    const p = el.dataset.thumb;
+    if (!thumbCache.has(p)) thumbCache.set(p, api(p).then(r => r.ok ? r.blob() : null).then(b => b && URL.createObjectURL(b)).catch(() => null));
+    thumbCache.get(p).then(u => { if (u) el.style.backgroundImage = `url('${u}')`; });
+  }
+}
+
+function chips() {
+  document.getElementById('catChips').innerHTML = Object.entries(CAT).map(([k, v]) =>
+    `<button class="chip ${catFilter === k ? 'on' : ''}" data-cat="${k}">${v}</button>`).join(' ');
+  const inCat = links.filter(l => catFilter === 'all' || (l.category || 'study') === catFilter);
+  const srcs = ['all', ...new Set(inCat.map(l => l.source))];
+  document.getElementById('srcChips').innerHTML = srcs.map(s =>
+    `<button class="chip ${srcFilter === s ? 'on' : ''}" data-src="${s}">${s === 'all' ? '모든 출처' : (SRC[s] || SRC.web).name}</button>`).join(' ');
+  const tags = [...new Set(inCat.flatMap(l => l.tags || []))].sort();
+  document.getElementById('tagChips').innerHTML = tags.map(t =>
+    `<button class="chip ${tagFilter === t ? 'on' : ''}" data-tag="${esc(t)}">#${esc(t)}</button>`).join('');
+  document.getElementById('hideDone').classList.toggle('on', hideDone);
+}
+
+document.addEventListener('click', e => {
+  const b = e.target.closest('button'); if (!b) return;
+  if (b.dataset.id) { done.has(b.dataset.id) ? done.delete(b.dataset.id) : done.add(b.dataset.id); store.set('done', [...done]); }
+  else if (b.dataset.cat) { catFilter = b.dataset.cat; store.set('cat', catFilter); srcFilter = 'all'; tagFilter = null; }
+  else if (b.dataset.src) srcFilter = b.dataset.src;
+  else if (b.dataset.tag) tagFilter = tagFilter === b.dataset.tag ? null : b.dataset.tag;
+  else if (b.id === 'hideDone') { hideDone = !hideDone; store.set('hideDone', hideDone); }
+  chips(); render();
+});
+document.getElementById('q').addEventListener('input', render);
+
+if (!cfg.token) {
+  document.querySelector('.bar').style.display = 'none';
+  document.getElementById('grid').innerHTML = `<div class="empty" style="grid-column:1/-1">이 기기에서는 아직 열람 설정이 되어 있지 않아요.<br><a href="share.html?setup=1" style="color:var(--navy)">설정하기</a></div>`;
+} else {
+  api('data/links.json').then(r => { if (!r.ok) throw new Error(r.status); return r.json(); }).then(d => {
+    links = d.sort((a, b) => (b.added || '').localeCompare(a.added || ''));
+    chips(); render();
+  }).catch(e => {
+    document.getElementById('grid').innerHTML = `<div class="empty" style="grid-column:1/-1">자료를 불러오지 못했어요 (${esc(e.message)}).<br>토큰이 만료되었거나 저장소 이름이 다를 수 있어요. <a href="share.html?setup=1" style="color:var(--navy)">설정 확인</a></div>`;
+  });
+}
+
+if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(() => {});
+</script>
+</body>
+</html>

@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>링크함에 담기</title>
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="theme-color" content="#1f3a5f">
+<style>
+  body { margin:0; background:#f7f4ee; color:#1d2430; font-family:"Pretendard","Noto Sans KR",system-ui,sans-serif; }
+  .box { max-width:520px; margin:0 auto; padding:24px 20px; }
+  h1 { font-size:22px; margin:0 0 14px; color:#1f3a5f; }
+  label { display:block; font-size:13px; color:#6b7280; margin:14px 0 6px; }
+  input, textarea { width:100%; box-sizing:border-box; padding:12px; border:1px solid #e5e0d6; border-radius:10px; font-size:16px; background:#fff; font-family:inherit; }
+  textarea { min-height:70px; }
+  .url { word-break:break-all; background:#fff; border:1px solid #e5e0d6; border-radius:10px; padding:12px; font-size:14px; }
+  button { width:100%; margin-top:18px; padding:15px; font-size:17px; font-weight:700; border:0; border-radius:12px; background:#1f3a5f; color:#fff; }
+  button.ghost { background:#fff; color:#1f3a5f; border:1px solid #1f3a5f; font-weight:500; font-size:15px; padding:12px; }
+  .msg { margin-top:16px; padding:12px; border-radius:10px; font-size:14px; line-height:1.6; display:none; }
+  .ok { background:#e8f5e9; color:#1b5e20; display:block; } .err { background:#fdecea; color:#b71c1c; display:block; }
+  .row { display:flex; gap:8px; align-items:center; margin-top:12px; font-size:14px; } .row input { width:auto; }
+  ol { padding-left:20px; line-height:1.8; font-size:14px; }
+</style>
+</head>
+<body>
+<div class="box" id="app"></div>
+<script>
+const store = {
+  get(k, d) { try { return JSON.parse(localStorage.getItem(k)) ?? d; } catch { return d; } },
+  set(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch {} }
+};
+const app = document.getElementById('app');
+const p = new URLSearchParams(location.search);
+const cfg = store.get('cfg', { repo: 'UP-HAN/my-links', token: '', auto: false });
+
+function findUrl() {
+  const all = [p.get('url'), p.get('text'), p.get('title')].filter(Boolean).join(' ');
+  const m = all.match(/https?:\/\/[^\s"'<>]+/);
+  return m ? m[0] : '';
+}
+
+function setupView(note) {
+  app.innerHTML = `<h1>휴대폰 공유 설정</h1>
+    ${note ? `<div class="msg err">${note}</div>` : ''}
+    <ol>
+      <li>안드로이드 크롬에서 이 사이트를 열고 메뉴(⋮) → <b>홈 화면에 추가(앱 설치)</b>를 누릅니다.</li>
+      <li>아래에 비공개 저장소 이름과 토큰을 한 번만 입력합니다. 토큰은 이 기기 브라우저에만 저장되고, 이 토큰이 있는 기기에서만 자료가 보입니다.</li>
+      <li>이제 쓰레드·인스타그램에서 <b>공유 → 링크함</b>을 누르면 자료가 쌓입니다. 컴퓨터에서는 2번만 하면 열람할 수 있습니다.</li>
+    </ol>
+    <label>자료 저장소 (비공개, 계정/저장소이름)</label><input id="repo" value="${cfg.repo}">
+    <label>깃허브 토큰 (my-links·my-ideas 두 저장소, Contents 읽기·쓰기)</label><input id="token" type="password" value="${cfg.token}" placeholder="github_pat_...">
+    <div class="row"><input type="checkbox" id="auto" ${cfg.auto ? 'checked' : ''}><span>메모 칸 없이 공부/생활 버튼만 보이기</span></div>
+    <button id="save">설정 저장</button>
+    <button class="ghost" onclick="location.href='./'">링크함 보기</button>
+    <div class="msg" id="msg"></div>`;
+  document.getElementById('save').onclick = () => {
+    cfg.repo = document.getElementById('repo').value.trim();
+    cfg.token = document.getElementById('token').value.trim();
+    cfg.auto = document.getElementById('auto').checked;
+    store.set('cfg', cfg);
+    const m = document.getElementById('msg'); m.className = 'msg ok'; m.textContent = '저장했어요. 이제 공유 메뉴에서 링크함을 고르면 됩니다.';
+  };
+}
+
+async function save(url, memo, tags, category) {
+  const now = new Date();
+  const id = now.toISOString().replace(/[-:.TZ]/g, '').slice(0, 14) + '-' + Math.random().toString(36).slice(2, 6);
+  const item = { id, url, category, memo, tags, sharedTitle: p.get('title') || '', sharedText: p.get('text') || '', added: now.toISOString() };
+  const body = { message: `링크 추가: ${url}`, content: btoa(unescape(encodeURIComponent(JSON.stringify(item, null, 2)))) };
+  const r = await fetch(`https://api.github.com/repos/${cfg.repo}/contents/data/inbox/${id}.json`, {
+    method: 'PUT', headers: { Authorization: `Bearer ${cfg.token}`, Accept: 'application/vnd.github+json' }, body: JSON.stringify(body)
+  });
+  if (!r.ok) throw new Error(`깃허브 저장 실패 (${r.status}). 토큰 권한이나 저장소 이름을 확인해 주세요.`);
+}
+
+function shareView(url) {
+  app.innerHTML = `<h1>링크함에 담기</h1>
+    <div class="url">${url.replace(/</g, '&lt;')}</div>
+    <div id="extra" ${cfg.auto ? 'style="display:none"' : ''}>
+      <label>메모 (선택)</label><textarea id="memo" placeholder="왜 저장했는지 한 줄"></textarea>
+      <label>태그 (선택, 쉼표로 구분)</label><input id="tags" placeholder="AI, 수업, 맛집">
+    </div>
+    <div style="display:flex;gap:10px">
+      <button id="study" style="flex:1">📚 공부</button>
+      <button id="life" style="flex:1;background:#c0663b">🏠 생활</button>
+    </div>
+    <button class="ghost" onclick="location.href='./'">링크함 보기</button>
+    <div class="msg" id="msg"></div>`;
+  document.getElementById('study').onclick = () => run('study');
+  document.getElementById('life').onclick = () => run('life');
+  async function run(category) {
+    const m = document.getElementById('msg'), btns = [document.getElementById('study'), document.getElementById('life')];
+    btns.forEach(x => x.disabled = true); m.className = 'msg ok'; m.textContent = '저장 중…';
+    try {
+      const tags = document.getElementById('tags').value.split(',').map(t => t.trim()).filter(Boolean);
+      await save(url, document.getElementById('memo').value.trim(), tags, category);
+      m.textContent = `${category === 'study' ? '공부' : '생활'} 자료로 담았어요! 썸네일은 1~2분 뒤 반영됩니다.`;
+      setTimeout(() => { try { window.close(); } catch {} }, 1500);
+    } catch (e) { m.className = 'msg err'; m.textContent = e.message; btns.forEach(x => x.disabled = false); }
+  }
+}
+
+const url = findUrl();
+if (p.get('setup') || !cfg.token) setupView(!p.get('setup') && url ? '처음 한 번은 설정이 필요해요. 설정 후 다시 공유해 주세요.' : '');
+else if (!url) setupView('공유된 내용에서 링크를 찾지 못했어요.');
+else shareView(url);
+</script>
+</body>
+</html>
